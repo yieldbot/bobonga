@@ -17,7 +17,10 @@ import (
 //	"github.com/yieldbot/dracky"
 //	"github.com/olivere/elastic"
 	// "io/ioutil"
+  // "github.com/shirou/gopsutil/process"
   "strconv"
+  "regexp"
+  "strings"
 	"os"
   "os/exec"
 //	"time"
@@ -25,44 +28,34 @@ import (
 
 // Get the pid for the supplied process
 func get_pid(app string) string {
-  go_pid := strconv.Itoa(os.Getpid())
-  fmt.Printf(go_pid)
+  pid_exp := regexp.MustCompile("[0-9]+")
+  go_pid := os.Getpid()
+  var a_pid string
+  fmt.Printf("golang binary pid: %v\n", go_pid)
+
   ps_aef := exec.Command("ps", "-aef")
-  grep_find := exec.Command("grep", app)
-  grep_exclude := exec.Command("grep", "-v", go_pid)
 
-
-  outPipe, err := ps_aef.StdoutPipe()
+  out, err := ps_aef.Output()
   if err != nil {
     dhuran.Check(err)
   }
 
   ps_aef.Start()
-  grep_find.Stdin = outPipe
 
-  outGrep, err := grep_find.StdoutPipe()
-  if err != nil {
-    dhuran.Check(err)
+  lines := strings.Split(string(out), "\n")
+  for i := range lines {
+    if (strings.Contains(lines[i], app) && ! strings.Contains(lines[i], strconv.Itoa(go_pid))){
+      // fmt.Printf("%v\n", lines[i])
+      a_pid = pid_exp.FindString(lines[i])
+      return a_pid
+      // matty := strings.Split(lines[i]," ")
+    // for j := range matty {
+    //   fmt.Printf("%v\n", matty[j])
+    // }
+    //     return lines[i]
+    }
   }
-fmt.Printf("one\n")
-  // fmt.Printf("%v",outGrep)
-  grep_exclude.Stdin = outGrep
-fmt.Printf("two\n")
-  out, err := grep_exclude.Output()
-  fmt.Printf("three\n")
-  // fmt.Printf(out)
-  if err != nil {
-
-    fmt.Printf("%v\n", err)
-    // dhuran.Check(err)
-  }
-  fmt.Printf("four\n")
-  defer outPipe.Close()
-  defer outGrep.Close()
-
-fmt.Printf(go_pid)
-
-  return string(out)
+  return ""
 }
 
 // Calculate if the value is over a threshold
@@ -78,39 +71,30 @@ fmt.Printf(go_pid)
 func main() {
 
 	// set commandline flags
-	// PidPtr := flag.String("pid", "1", "the pid for the process you wish to check")
 	AppPtr := flag.String("app", "sbin/init", "the process name")
 	WarnPtr := flag.Int("warn", 75, "the alert warning threshold percentage")
 	CritPtr := flag.Int("crit", 75, "the alert critical threshold percentage")
 
 	flag.Parse()
-	// PidPtr := *PidPtr
 	app := *AppPtr
 	warn_threshold := *WarnPtr
 	crit_threshold := *CritPtr
 
-	// I don't want to call these if they are not needed
-	// sensu_event := new(dracky.Sensu_Event)
-	// user_event := new(dracky.User_Event)
-	//t_format := *timePtr
-
-	// sensu_env := dracky.Set_sensu_env()
-
-	//   if t_format != "" {
-	//     // get the format of the time
-	//     es_index = es_index + t_format
-	//   }
+  var app_pid string
 
 	if app != "" {
-    pid := get_pid(app)
-    fmt.Printf(pid)
+    // YELLOW check for a null or nil string
+    // need to check for the process better, regex?
+    app_pid = get_pid(app)
+
   } else {
     fmt.Printf("Please enter a process name to check")
 		os.Exit(100)
     }
 
-    fmt.Printf(out)
-    fmt.Printf("%v , %v\n", warn_threshold, crit_threshold)
+    fmt.Printf("warning threshold: %v, critical threshold: %v\n", warn_threshold, crit_threshold)
+    fmt.Printf("app pid is: %v\n", app_pid)
+
 
 
 
