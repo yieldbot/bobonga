@@ -42,7 +42,7 @@ func get_pid(app string) string {
 	for i := range lines {
 		if strings.Contains(lines[i], app) && !strings.Contains(lines[i], strconv.Itoa(go_pid)) {
 			a_pid = pid_exp.FindString(lines[i])
-      break
+			break
 		}
 	}
 	return a_pid
@@ -50,15 +50,15 @@ func get_pid(app string) string {
 
 // Calculate if the value is over a threshold
 func determine_threshold(limit int, threshold int, num_fd int) bool {
-  alarm := true
-  t_limit := (float64(threshold) / float64(100)) * float64(limit)
+	alarm := true
+	t_limit := (float64(threshold) / float64(100)) * float64(limit)
 
-  if float64(num_fd) > float64(t_limit) {
-    alarm = true
-  } else {
-    alarm = false
-  }
-  return alarm
+	if float64(num_fd) > float64(t_limit) {
+		alarm = true
+	} else {
+		alarm = false
+	}
+	return alarm
 }
 
 // Get the current number of open file handles for the process
@@ -67,8 +67,8 @@ func get_file_handles(pid string) (int, int, int) {
 	var s, h int
 	limit_exp := regexp.MustCompile("[0-9]+")
 	filename := `/proc/` + pid + `/limits`
-  fd_loc := "/proc/" + pid + "/fd"
-  num_fd := 0
+	fd_loc := "/proc/" + pid + "/fd"
+	num_fd := 0
 
 	limits, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -97,11 +97,10 @@ func get_file_handles(pid string) (int, int, int) {
 		}
 	}
 
-
-  files, _ := ioutil.ReadDir(fd_loc)
-    for _ = range files {
-      num_fd = num_fd + 1
-    }
+	files, _ := ioutil.ReadDir(fd_loc)
+	for _ = range files {
+		num_fd = num_fd + 1
+	}
 	return s, h, num_fd
 }
 
@@ -124,22 +123,22 @@ func main() {
 		// YELLOW check for a null or nil string
 		// need to check for the process better, regex?
 		app_pid = get_pid(app)
-		s_limit, h_limit , open_fd = get_file_handles(app_pid)
-    if determine_threshold(h_limit, crit_threshold, open_fd) {
-      fmt.Printf("%v is over %v percent of the the open file handles hard limit of %v\n", app, crit_threshold, h_limit)
-      os.Exit(2)
-    } else if determine_threshold(s_limit, warn_threshold, open_fd) {
-        fmt.Printf("%v is over %v percent of the open file handles soft limit of %v\n", app, warn_threshold, s_limit)
-        os.Exit(1)
-    } else {
-      // YELLOW need to set some other conditions here in case this fails
-      fmt.Printf("warning threshold: %v percent, critical threshold: %v percent\n", warn_threshold, crit_threshold)
-      fmt.Printf("this is the number of open files at the specific point in time: %v\n", open_fd)
-    	fmt.Printf("app pid is: %v\n", app_pid)
-    	fmt.Printf("This is the soft limit: %v\n", s_limit)
-    	fmt.Printf("This is the hard limit: %v\n", h_limit)
-      os.Exit(0)
-    }
+		s_limit, h_limit, open_fd = get_file_handles(app_pid)
+		if determine_threshold(h_limit, crit_threshold, open_fd) {
+			fmt.Printf("%v is over %v percent of the the open file handles hard limit of %v\n", app, crit_threshold, h_limit)
+			os.Exit(2)
+		} else if determine_threshold(s_limit, warn_threshold, open_fd) {
+			fmt.Printf("%v is over %v percent of the open file handles soft limit of %v\n", app, warn_threshold, s_limit)
+			os.Exit(1)
+		} else {
+			// YELLOW need to set some other conditions here in case this fails
+			fmt.Printf("warning threshold: %v percent, critical threshold: %v percent\n", warn_threshold, crit_threshold)
+			fmt.Printf("this is the number of open files at the specific point in time: %v\n", open_fd)
+			fmt.Printf("app pid is: %v\n", app_pid)
+			fmt.Printf("This is the soft limit: %v\n", s_limit)
+			fmt.Printf("This is the hard limit: %v\n", h_limit)
+			os.Exit(0)
+		}
 	} else {
 		fmt.Printf("Please enter a process name to check")
 		os.Exit(100)
