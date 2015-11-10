@@ -22,56 +22,61 @@ import (
 )
 
 // Get the pid for the desired process
-func get_pid(app string) string {
-	pid_exp := regexp.MustCompile("[0-9]+")
-  a_pid := ""
+func getPid(app string) string {
+	pidExp := regexp.MustCompile("[0-9]+")
+	termExp := regexp.MustCompile(`pts/[0-9]`)
+	appPid := ""
 
 	/// the pid for the binary
-	go_pid := os.Getpid()
+	goPid := os.Getpid()
 	if dracky.Debug {
-		fmt.Printf("golang binary pid: %v\n", go_pid)
+		fmt.Printf("golang binary pid: %v\n", goPid)
 	}
 
-	ps_aef := exec.Command("ps", "-aef")
+	psAEF := exec.Command("ps", "-aef")
 
-	out, err := ps_aef.Output()
+	out, err := psAEF.Output()
 	if err != nil {
 		dracky.Check(err)
 	}
 
-	ps_aef.Start()
+	psAEF.Start()
 
 	lines := strings.Split(string(out), "\n")
 
-	if ! dracky.Java_app {
+	if !dracky.JavaApp {
 		for i := range lines {
-			if !strings.Contains(lines[i], strconv.Itoa(go_pid)) &&  !strings.Contains(lines[i], "pts/0") {
+			if !strings.Contains(lines[i], strconv.Itoa(goPid)) && !termExp.MatchString(lines[i]) {
 				words := strings.Split(lines[i], " ")
 				for j := range words {
 					if app == words[j] {
-						fmt.Printf("%v\n", words[j])
-						a_pid = pid_exp.FindString(lines[i])
+						appPid = pidExp.FindString(lines[i])
 					}
 				}
 			}
 		}
 	} else {
 		for i := range lines {
-			if strings.Contains(lines[i], app) && !strings.Contains(lines[i], strconv.Itoa(go_pid)) &&  !strings.Contains(lines[i], "pts/0") {
-				a_pid = pid_exp.FindString(lines[i])
+			if strings.Contains(lines[i], app) && !strings.Contains(lines[i], strconv.Itoa(goPid)) && !termExp.MatchString(lines[i]) {
+				appPid = pidExp.FindString(lines[i])
 
 			}
 		}
 	}
-	return a_pid
+	if appPid == "" {
+		fmt.Printf("No process with the name " + app + " exists.\n")
+		fmt.Printf("If unsure consult the documentation for examples and requirements\n")
+		os.Exit(dracky.CONFIG_ERROR)
+	}
+	return appPid
 }
 
 // Calculate if the value is over a threshold
-func determine_threshold(limit float64, threshold float64, num_fd float64) bool {
+func determineThreshold(limit float64, threshold float64, numFD float64) bool {
 	alarm := true
-	t_limit := threshold / float64(100) * limit
+	tLimit := threshold / float64(100) * limit
 
-	if num_fd > float64(t_limit) {
+	if numFD > float64(tLimit) {
 		alarm = true
 	} else {
 		alarm = false
@@ -80,13 +85,13 @@ func determine_threshold(limit float64, threshold float64, num_fd float64) bool 
 }
 
 // Get the current number of open file handles for the process
-func get_file_handles(pid string) (float64, float64, float64) {
+func getFileHandles(pid string) (float64, float64, float64) {
 	var _s, _h string
 	var s, h float64
-	limit_exp := regexp.MustCompile("[0-9]+")
+	limitExp := regexp.MustCompile("[0-9]+")
 	filename := `/proc/` + pid + `/limits`
-	fd_loc := "/proc/" + pid + "/fd"
-	num_fd := 0.0
+	fdLoc := "/proc/" + pid + "/fd"
+	numFD := 0.0
 
 	limits, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -96,7 +101,7 @@ func get_file_handles(pid string) (float64, float64, float64) {
 	lines := strings.Split(string(limits), "\n")
 	for i := range lines {
 		if strings.Contains(lines[i], "open files") {
-			limits := limit_exp.FindAllString(lines[i], 2)
+			limits := limitExp.FindAllString(lines[i], 2)
 			_s = limits[0]
 			_h = limits[1]
 
@@ -115,11 +120,16 @@ func get_file_handles(pid string) (float64, float64, float64) {
 		}
 	}
 
-	files, _ := ioutil.ReadDir(fd_loc)
+	files, _ := ioutil.ReadDir(fdLoc)
 	for _ = range files {
-		num_fd++
+		numFD++
 	}
-	return s, h, num_fd
+	if numFD == 0.0 {
+		fmt.Printf("There are no open file descriptors for the process, did you use sudo?\n")
+		fmt.Printf("If unsure of the use, consult the documentation for examples and requirements\n")
+		os.Exit(dracky.PERMISSION_ERROR)
+	}
+	return s, h, numFD
 }
 
 func main() {
@@ -133,39 +143,39 @@ func main() {
 
 	flag.Parse()
 	app := *AppPtr
-	warn_threshold := *WarnPtr
-	crit_threshold := *CritPtr
+	warnThreshold := *WarnPtr
+	critThreshold := *CritPtr
 	dracky.Debug = *DebugPtr
-	dracky.Java_app = *JavaAppPtr
+	dracky.JavaApp = *JavaAppPtr
 
-	var app_pid string
-	var s_limit, h_limit, open_fd float64
+	var appPid string
+	var sLimit, hLimit, openFd float64
 
 	if app != "" {
-		// YELLOW check for a null or nil string
-		// need to check for the process better, regex?
-		app_pid = get_pid(app)
-		s_limit, h_limit, open_fd = get_file_handles(app_pid)
+		appPid = getPid(app)
+		sLimit, hLimit, openFd = getFileHandles(appPid)
 		if dracky.Debug {
-			fmt.Printf("warning threshold: %v percent, critical threshold: %v percent\n", warn_threshold, crit_threshold)
-			fmt.Printf("this is the number of open files at the specific point in time: %v\n", open_fd)
-			fmt.Printf("app pid is: %v\n", app_pid)
-			fmt.Printf("This is the soft limit: %v\n", s_limit)
-			fmt.Printf("This is the hard limit: %v\n", h_limit)
+			fmt.Printf("warning threshold: %v percent, critical threshold: %v percent\n", warnThreshold, critThreshold)
+			fmt.Printf("this is the number of open files at the specific point in time: %v\n", openFd)
+			fmt.Printf("app pid is: %v\n", appPid)
+			fmt.Printf("This is the soft limit: %v\n", sLimit)
+			fmt.Printf("This is the hard limit: %v\n", hLimit)
 			os.Exit(0)
 		}
-		if determine_threshold(h_limit, float64(crit_threshold), open_fd) {
-			fmt.Printf("%v is over %v percent of the the open file handles hard limit of %v\n", app, crit_threshold, h_limit)
+		if determineThreshold(hLimit, float64(critThreshold), openFd) {
+			fmt.Printf("%v is over %v percent of the the open file handles hard limit of %v\n", app, critThreshold, hLimit)
 			os.Exit(2)
-		} else if determine_threshold(s_limit, float64(warn_threshold), open_fd) {
-			fmt.Printf("%v is over %v percent of the open file handles soft limit of %v\n", app, warn_threshold, s_limit)
+		} else if determineThreshold(sLimit, float64(warnThreshold), openFd) {
+			fmt.Printf("%v is over %v percent of the open file handles soft limit of %v\n", app, warnThreshold, sLimit)
 			os.Exit(1)
 		} else {
-			// YELLOW need to set some other conditions here in case this fails
-			os.Exit(0)
+			fmt.Printf("There was an error calculating the thresholds. Check to make sure everything got convert to a float64.\n")
+			fmt.Printf("If unsure of the use, consult the documentation for examples and requirements\n")
+			os.Exit(dracky.RUNTIME_ERROR)
 		}
 	} else {
-		fmt.Printf("Please enter a process name to check")
-		os.Exit(100)
+		fmt.Printf("Please enter a process name to check. \n")
+		fmt.Printf("If unsure consult the documentation for examples and requirements\n")
+		os.Exit(dracky.CONFIG_ERROR)
 	}
 }
