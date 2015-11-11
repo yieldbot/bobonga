@@ -21,4 +21,15 @@ To build for linux use:
 `cd /opt/gopath/github.com/yieldbot/bobonga`
 `make release`
 
-the binary will be in *./bin* and the zip file will be in *./pkg*. Currently this will only build for linux/amd64 but you can call gox with any range of os and arch options. Use `gox --help` for all available choices.
+the binary will be in *./bin* and the tarball file will be in *./pkg*. Currently this will only build for linux/amd64 but you can call gox with any range of os and arch options. Use `gox --help` for all available choices.
+
+### Building (w/ borat)
+
+`borat build alpine-golang-builder 1.5.1`
+
+`docker run --rm -it -v /Users/<user>/<path/to/project:/gopath/src/github.com/ IMAGE_ID /bin/sh`
+
+`cd /gopath/src/github.com/bobonga`
+`make release`
+
+the binary will be in *./bin* and the tarball file will be in *./pkg*. Currently this will only build for linux/amd64 but you can call gox with any range of os and arch options. Use `gox --help` for all available choices.
