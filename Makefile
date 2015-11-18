@@ -1,78 +1,114 @@
-TEST?=./...
-VETARGS?=-asmdecl -atomic -bool -buildtags -copylocks -methods -nilfunc -printf -rangeloops -shift -structtags -unsafeptr
+SHELL = /bin/sh
+.PHONY: all build bump_version clean coverage dist format install lint maintainer-clean test test_all updatedeps version vet
 
-default: release
+# Set the src directory if it is not overwritten on the commandline.
+# You can overwrite this by setting your build command to `make srcdir=path <target>`
+ifndef SRCDIR
+SRCDIR = ./src
+endif
 
-# bin generates the releaseable binaries for Terraform
-bin: generate
-	@sh -c "'$(CURDIR)/scripts/build.sh'"
+ifndef OSARCH
+OSARCH = linux/amd64
+endif
 
-# dev creates binaries for testing Terraform locally. These are put
-# into ./bin/ as well as $GOPATH/bin
-# dev: generate
-# 	@TF_DEV=1 sh -c "'$(CURDIR)/scripts/build.sh'"
-#
-# quickdev: generate
-# 	@TF_QUICKDEV=1 TF_DEV=1 sh -c "'$(CURDIR)/scripts/build.sh'"
+ifndef PKGBASE
+PKGBASE = github.com
+endif
 
-release: updatedeps
-	gox -osarch="linux/amd64"
-	@$(MAKE) bin
+ifndef PKG
+PKG := $(shell pwd | awk -F/ '{ print $$NF }')
+endif
 
-# # test runs the unit tests and vets the code
-# test: generate
-# 	TF_ACC= go test $(TEST) $(TESTARGS) -timeout=30s -parallel=4
-# 	@$(MAKE) vet
+ifndef OUTPUT
+	ifeq ("$(OSARCH)","linux/amd64")
+		OUT = ./bin/$(PKG)
+	else
+			OUT = ./bin/$(PKG)_{{.OS}}_{{.Arch}}
+	endif
+else
+	ifeq ("$(OSARCH)","linux/amd64")
+		OUT = ./bin/$(OUTPUT)
+	else
+			OUT = ./bin/$(OUTPUT)_{{.OS}}_{{.Arch}}
+	endif
+endif
 
-# # testacc runs acceptance tests
-# testacc: generate
-# 	@if [ "$(TEST)" = "./..." ]; then \
-# 		echo "ERROR: Set TEST to a specific package. For example,"; \
-# 		echo "  make testacc TEST=./builtin/providers/aws"; \
-# 		exit 1; \
-# 	fi
-# 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 90m
-#
-# # testrace runs the race checker
-# testrace: generate
-# 	TF_ACC= go test -race $(TEST) $(TESTARGS)
+ifndef TARGET_PATH
+TARGET_PATH = target
+endif
 
-# updatedeps installs all the dependencies that Terraform needs to run
-# and build.
+ifndef DESTDIR
+DESTDIR = /usr/local/bin
+endif
+
+# This will format the code, run tests/linters, and then build/package the code
+default: all
+
+# We only care about go files at the moment so clear and explictly denote that
+.SUFFIXES:
+.SUFFIXES: .go
+
+# build and then create a tarball in the target directory
+# basically everything needed by drteeth to put it into artifactory
+all:
+	@echo "this needs to be implemented"
+
+# Build a binary from the given package and drop it into the local bin
+build:
+		gox -osarch="$(OSARCH)" -output=$(OUT) $(PKGBASE)/$(PKG)/src
+
+# this will bump the version of the project
+bump_version:
+	@echo "this needs to be implemented"
+
+# delete all files used for building
+clean:
+	@echo "this needs to be implemented"
+
+# run the go coverage tool
+coverage:
+	@echo "this needs to be implemented"
+
+# pack everything up neatly
+dist: build
+	tar -czvpf $(TARGET_PATH)/$(PKG).tgz $$GOPATH/src/$(PKGBASE)/$(PKG)/bin/*
+
+# run the go formatting tool on all files in the current src directory
+format:
+	@gofmt -w $(SRCDIR)/*.go
+
+# install the binary locally for testing
+install:
+	cp $$GOPATH/src/$(PKGBASE)/$(PKG)/bin/* $(DESTDIR)
+
+# run the go linting tool
+lint:
+	@golint $(SRCDIR)/*.go
+
+# @echo 'This command is intended for maintainers to use; it'
+# @echo 'deletes files that may need special tools to rebuild.'
+maintainer-clean:
+	@echo "this needs to be implemented"
+
+# run unit tests and anything else testing wise needed
+test:
+	@echo "this needs to be implemented"
+
+# run unit tests, vet, and liniting combined
+test_all:
+	@echo "this needs to be implemented"
+
+# update all deps to the latest versions available
 updatedeps:
-	go get -u github.com/mitchellh/gox
-	go list ./... \
+	@go list ./... \
 		| xargs go list -f '{{join .Deps "\n"}}' \
-		| grep -v github.com/hashicorp/terraform \
-		| grep -v '/internal/' \
 		| sort -u \
 		| xargs go get -f -u -v
 
-cover:
-	@go tool cover 2>/dev/null; if [ $$? -eq 3 ]; then \
-		go get -u golang.org/x/tools/cmd/cover; \
-	fi
-	go test $(TEST) -coverprofile=coverage.out
-	go tool cover -html=coverage.out
-	rm coverage.out
+# print out the current version of the project
+version:
+	@echo "this needs to be implemented"
 
-# vet runs the Go source code static analysis tool `vet` to find
-# any common errors.
+# run go vet
 vet:
-	@go tool vet 2>/dev/null ; if [ $$? -eq 3 ]; then \
-		go get golang.org/x/tools/cmd/vet; \
-	fi
-	@echo "go tool vet $(VETARGS) ."
-	@go tool vet $(VETARGS) . ; if [ $$? -eq 1 ]; then \
-		echo ""; \
-		echo "Vet found suspicious constructs. Please check the reported constructs"; \
-		echo "and fix them if necessary before submitting the code for review."; \
-		exit 1; \
-	fi
-
-# generate runs `go generate` to build the dynamically generated
-# source files.
-generate:
-	go generate ./...
-
-.PHONY: bin default generate test updatedeps vet
+	@echo "this needs to be implemented"
