@@ -1,92 +1,131 @@
 SHELL = /bin/sh
-.PHONY: all build bump_version clean coverage dist format install lint maintainer-clean test test_all updatedeps version vet
+.PHONY: all build bump_version clean coverage dist format help install lint maintainer-clean test test_all updatedeps version vet
 
-# Set the src directory if it is not overwritten on the commandline.
-# You can overwrite this by setting your build command to `make srcdir=path <target>`
-ifndef SRCDIR
-SRCDIR = ./src
+# We only care about golang and texinfo files at the moment so clear and explictly denote that
+.SUFFIXES:
+.SUFFIXES: .go .texinfo
+
+# Set the location for installing GNU info files
+# You can overwrite this by setting your build command to
+# `make infodir=path install`
+ifndef infodir
+infodir = /usr/local/share/info
 endif
 
-ifndef OSARCH
-OSARCH = linux/amd64
+# Set the src directory. You can overwrite this by setting your build command
+# to `make srcdir=path build`
+ifndef srcdir
+srcdir = src
 endif
 
-ifndef PKGBASE
-PKGBASE = github.com
+# Set the default os/arch to build for. Specify additional values in a space
+# seperated array. To overwrite this use
+# `make osarch="linux/amd64 linux/386" build`
+ifndef osarch
+osarch = linux/amd64
 endif
 
-ifndef PKG
-PKG := $(shell pwd | awk -F/ '{ print $$NF }')
+# Set the base package location.
+# `make pkgbase="yieldbot" build
+ifndef pkgbase
+pkgbase = github.com
 endif
 
-ifndef OUTPUT
-	ifeq ("$(OSARCH)","linux/amd64")
-		OUT = ./bin/$(PKG)
+# Set the default package. Specify additional values in a space
+# seperated array. To overwrite this use
+# `make pkg="diemon bobogono" build`
+ifndef pkg
+pkg := $(shell pwd | awk -F/ '{ print $$NF }')
+endif
+
+# Set the name of the output file. If using only a single os/arch the name
+# will be as given. If multiple os/arch combinations are used then the given
+# name will be suffixed with _OS_ARCH.
+ifndef out
+	ifeq ("$(osarch)","linux/amd64")
+		output = ./bin/$(pkg)
 	else
-			OUT = ./bin/$(PKG)_{{.OS}}_{{.Arch}}
+			output = ./bin/$(pkg)_{{.OS}}_{{.Arch}}
 	endif
 else
-	ifeq ("$(OSARCH)","linux/amd64")
-		OUT = ./bin/$(OUTPUT)
+	ifeq ("$(osarch)","linux/amd64")
+		output = ./bin/$(out)
 	else
-			OUT = ./bin/$(OUTPUT)_{{.OS}}_{{.Arch}}
+			output = ./bin/$(out)_{{.OS}}_{{.Arch}}
 	endif
 endif
 
-ifndef TARGET_PATH
-TARGET_PATH = target
+# Set the path that the tarball will be dropped into. DrTeeth will look in
+# ./target by default but golang will put it into ./pkg if left to itself.
+ifndef target_path
+target_path = target
 endif
 
-ifndef DESTDIR
-DESTDIR = /usr/local/bin
+# Set where the local binary should be installed to for testing purposes.
+ifndef destdir
+destdir = /usr/local/bin
 endif
 
-# This will format the code, run tests/linters, and then build/package the code
 default: all
 
-# We only care about go files at the moment so clear and explictly denote that
-.SUFFIXES:
-.SUFFIXES: .go
-
 # build and then create a tarball in the target directory
-# basically everything needed by drteeth to put it into artifactory
-all:
-	@echo "this needs to be implemented"
+# basically everything needed to put it into artifactory
+all: format lint updatedeps build dist
 
 # Build a binary from the given package and drop it into the local bin
 build:
-		gox -osarch="$(OSARCH)" -output=$(OUT) $(PKGBASE)/$(PKG)/src
+	@for i in $$(echo $(pkg)); do \
+  	gox -osarch="$(osarch)" -output=$(output) $(pkgbase)/$$i/$(srcdir); \
+  done; \
 
-# this will bump the version of the project
+# bump the version of the project
 bump_version:
-	@echo "this needs to be implemented"
+	@ver=$$(awk '{ print $$NF }' version | awk -F. '{ print $$NF }'); \
+	ver=$$(($$ver+1)); \
+	echo "version 0.0.$$ver" > ./version
+
 
 # delete all files used for building
 clean:
 	@echo "this needs to be implemented"
 
-# run the go coverage tool
+# run the golang coverage tool
 coverage:
 	@echo "this needs to be implemented"
 
 # pack everything up neatly
 dist: build
-	tar -czvpf $(TARGET_PATH)/$(PKG).tgz $$GOPATH/src/$(PKGBASE)/$(PKG)/bin/*
+	tar -czvpf $(target_path)/$(pkg).tgz $$GOPATH/src/$(pkgbase)/$(pkg)/bin/*
 
-# run the go formatting tool on all files in the current src directory
+# run the golang formatting tool on all files in the current src directory
 format:
-	@gofmt -w $(SRCDIR)/*.go
+	@gofmt -w $(srcdir)/*.go
 
-# install the binary locally for testing
+# install the binary and any info docs locally for testing
 install:
-	cp $$GOPATH/src/$(PKGBASE)/$(PKG)/bin/* $(DESTDIR)
+	@if [ -e $$GOPATH/src/$(pkgbase)/$(pkg)/bin/* ]; then \
+	  mkdir -p $(destdir); \
+	  cp $$GOPATH/src/$(pkgbase)/$(pkg)/bin/* $(dest dir); \
+	else \
+		echo "Nothing to install, no binaries were found in ./bin/"; \
+	fi; \
 
-# run the go linting tool
+	@if [ -e ./docs/*.info ]; then \
+	  mkdir -p $(infodir); \
+	  cp ./docs/*.info $(infodir); \
+	fi; \
+
+info:
+	@if [ -e ./docs/*.texinfo ]; then \
+	  makeinfo ./docs/*.texinfo --output ./docs/; \
+	else \
+		echo "Nothing to build, no info files were found in ./docs/"; \
+	fi; \
+
+# run the golang linting tool
 lint:
-	@golint $(SRCDIR)/*.go
+	@golint $$GOPATH/src/$(pkgbase)/$(pkg)/$(srcdir)/*.go
 
-# @echo 'This command is intended for maintainers to use; it'
-# @echo 'deletes files that may need special tools to rebuild.'
 maintainer-clean:
 	@echo "this needs to be implemented"
 
@@ -94,7 +133,7 @@ maintainer-clean:
 test:
 	@echo "this needs to be implemented"
 
-# run unit tests, vet, and liniting combined
+# run unit tests, vet, formatting, and liniting combined
 test_all:
 	@echo "this needs to be implemented"
 
@@ -107,7 +146,11 @@ updatedeps:
 
 # print out the current version of the project
 version:
-	@echo "this needs to be implemented"
+	@if [ -e version ]; then \
+	  awk '{ print $$NF }' version; \
+	else \
+		@echo "No version file found in the project root"; \
+	fi; \
 
 # run go vet
 vet:
